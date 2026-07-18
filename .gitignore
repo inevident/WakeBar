@@ -9,3 +9,11 @@ DerivedData/
 .env
 .env.*
 !.env.example
+
+# Apple signing and notarization credentials must stay out of source control.
+*.p8
+*.p12
+*.key
+*.pem
+*.cer
+*.certSigningRequest

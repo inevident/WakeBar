@@ -256,6 +256,45 @@ Build the app:
 ./Scripts/build-app.sh
 ```
 
+`build-app.sh` always produces an ad-hoc-signed local build. Installing a
+Developer ID certificate does not change that behavior.
+
+### Optional future signed release
+
+WakeBar's public distribution remains source-only. The repository includes a
+separate local release-preparation workflow for a possible future binary.
+`Scripts/prepare-notarized-release.sh` requires all three of the following
+before it will build or sign anything: the explicit
+`--sign-and-notarize` flag, a Developer ID Application identity, and a
+Keychain-backed `notarytool` profile. It signs with the hardened runtime,
+submits to Apple's notary service, staples and validates the ticket, checks the
+result with Gatekeeper, and creates a local ZIP plus SHA-256 checksum. Signing
+happens on a temporary staging copy, so `dist/WakeBar.app` remains the ordinary
+ad-hoc build even if release preparation fails. The script never uploads a
+GitHub release.
+
+When a signed release is actually wanted, first store notarization credentials
+locally in Keychain. Do not put an Apple password, app-specific password, API
+key, or signing certificate in the repository:
+
+```sh
+xcrun notarytool store-credentials "WakeBar-notary" \
+  --apple-id "YOUR_APPLE_ACCOUNT" \
+  --team-id "YOUR_TEAM_ID"
+```
+
+Then run the deliberately guarded release command:
+
+```sh
+WAKEBAR_SIGNING_IDENTITY="Developer ID Application: Name (TEAMID)" \
+WAKEBAR_NOTARY_PROFILE="WakeBar-notary" \
+./Scripts/prepare-notarized-release.sh --sign-and-notarize
+```
+
+Until a resulting signed archive is deliberately published, the
+source-distribution notice at the top of this README remains the authoritative
+release status.
+
 Run the test suite:
 
 ```sh
