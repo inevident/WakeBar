@@ -59,9 +59,11 @@ enum InlineNotice: Equatable, Sendable {
 @MainActor
 final class SleepControlModel: ObservableObject {
     static let policyPreferenceKey = "wakebar.policy-mode"
+    static let lifetimeWakeSessionPreferenceKey = "wakebar.lifetime-protected-lid-closure-count"
 
     @Published private(set) var state: SleepPreventionState = .loading
     @Published private(set) var policyMode: WakePolicyMode
+    @Published private(set) var lifetimeWakeSessionCount: Int
     @Published private(set) var instantControlState: InstantControlState = .checking
     @Published private(set) var powerSnapshot: PowerSnapshot = .unknown
     @Published private(set) var agentActivities: [AgentActivity] = []
@@ -74,32 +76,49 @@ final class SleepControlModel: ObservableObject {
 
     private let service: any PMSetServicing
     private let agentDetector: any AgentActivityDetecting
+    private let lidAngleSensor: any LidAngleSensing
     private let preferences: UserDefaults
     private let releaseGracePeriod: TimeInterval
     private let monitorInterval: Duration
+    private let lidMonitorInterval: Duration
     private let systemVerificationInterval: TimeInterval
+    private let backgroundMonitoringEnabled: Bool
     private var operationTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
+    private var lidMonitorTask: Task<Void, Never>?
     private var lastActiveAt: Date?
     private var lastSystemVerificationAt: Date?
     private var operationRevision: UInt64 = 0
+    private var lidClosureDetector = LidClosureDetector()
 
     init(
         service: any PMSetServicing = PMSetService(),
         agentDetector: any AgentActivityDetecting = LocalAgentActivityDetector(),
+        lidAngleSensor: any LidAngleSensing = MacBookLidAngleSensor(),
         preferences: UserDefaults = .standard,
         releaseGracePeriod: TimeInterval = 90,
         monitorInterval: Duration = .seconds(5),
+        lidMonitorInterval: Duration = .milliseconds(250),
         systemVerificationInterval: TimeInterval = 20,
         refreshOnInit: Bool = true,
         startMonitoring: Bool = true
     ) {
         self.service = service
         self.agentDetector = agentDetector
+        self.lidAngleSensor = lidAngleSensor
         self.preferences = preferences
         self.releaseGracePeriod = releaseGracePeriod
         self.monitorInterval = monitorInterval
+        self.lidMonitorInterval = lidMonitorInterval
         self.systemVerificationInterval = systemVerificationInterval
+        self.backgroundMonitoringEnabled = startMonitoring
+        let storedWakeSessionCount = preferences.integer(
+            forKey: Self.lifetimeWakeSessionPreferenceKey
+        )
+        self.lifetimeWakeSessionCount = max(0, storedWakeSessionCount)
+        if storedWakeSessionCount < 0 {
+            preferences.set(0, forKey: Self.lifetimeWakeSessionPreferenceKey)
+        }
 
         if let storedMode = preferences.string(forKey: Self.policyPreferenceKey),
            let mode = WakePolicyMode(rawValue: storedMode) {
@@ -109,6 +128,7 @@ final class SleepControlModel: ObservableObject {
         }
 
         if startMonitoring {
+            startLidMonitoringIfNeeded()
             let interval = monitorInterval
             monitorTask = Task { @MainActor [weak self] in
                 if refreshOnInit {
@@ -137,6 +157,7 @@ final class SleepControlModel: ObservableObject {
     deinit {
         operationTask?.cancel()
         monitorTask?.cancel()
+        lidMonitorTask?.cancel()
     }
 
     var isEnabled: Bool {
@@ -312,6 +333,12 @@ final class SleepControlModel: ObservableObject {
         await reconcilePolicyWithoutPrompt()
     }
 
+    func pollLidAngle() async {
+        let angle = await lidAngleSensor.currentAngle()
+        guard !Task.isCancelled else { return }
+        await observeLidAngle(angle)
+    }
+
     func requestPolicyMode(_ mode: WakePolicyMode) {
         guard !isChanging else { return }
 
@@ -326,6 +353,7 @@ final class SleepControlModel: ObservableObject {
 
         policyMode = mode
         preferences.set(mode.rawValue, forKey: Self.policyPreferenceKey)
+        updateLidMonitoringForPolicy()
         startOperation { model in
             await model.performApplyPolicyMode(mode)
         }
@@ -344,6 +372,7 @@ final class SleepControlModel: ObservableObject {
 
         policyMode = .off
         preferences.set(WakePolicyMode.off.rawValue, forKey: Self.policyPreferenceKey)
+        updateLidMonitoringForPolicy()
         startOperation { model in
             await model.performRemoveInstantControl()
         }
@@ -383,6 +412,7 @@ final class SleepControlModel: ObservableObject {
     private func performApplyPolicyMode(_ mode: WakePolicyMode) async {
         policyMode = mode
         preferences.set(mode.rawValue, forKey: Self.policyPreferenceKey)
+        updateLidMonitoringForPolicy()
         notice = nil
 
         do {
@@ -429,12 +459,12 @@ final class SleepControlModel: ObservableObject {
         enabled: Bool,
         allowSetupPrompt: Bool
     ) async throws {
-        if state == .loading || state == .unavailable {
-            let currentValue = try await service.currentSleepPreventionState()
-            state = currentValue ? .enabled : .disabled
-        }
+        // Read immediately before deciding to write so an external pmset change
+        // cannot be mistaken for a new WakeBar protection session.
+        let currentValue = try await service.currentSleepPreventionState()
+        state = currentValue ? .enabled : .disabled
 
-        guard enabled != isEnabled else { return }
+        guard enabled != currentValue else { return }
 
         do {
             try await service.setSleepPrevention(enabled: enabled)
@@ -571,6 +601,69 @@ final class SleepControlModel: ObservableObject {
         }
 
         setNotice(for: error)
+    }
+
+    private func updateLidMonitoringForPolicy() {
+        if policyMode == .automatic {
+            startLidMonitoringIfNeeded()
+        } else {
+            stopLidMonitoring()
+        }
+    }
+
+    private func startLidMonitoringIfNeeded() {
+        guard backgroundMonitoringEnabled,
+              policyMode == .automatic,
+              lidMonitorTask == nil else { return }
+
+        let sensor = lidAngleSensor
+        let interval = lidMonitorInterval
+        lidMonitorTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                let angle = await sensor.currentAngle()
+                guard !Task.isCancelled else { break }
+                await self?.observeLidAngle(angle)
+
+                do {
+                    try await Task.sleep(for: interval)
+                } catch {
+                    break
+                }
+            }
+            await sensor.stop()
+        }
+    }
+
+    private func stopLidMonitoring() {
+        lidMonitorTask?.cancel()
+        lidMonitorTask = nil
+        lidClosureDetector.reset()
+    }
+
+    private func observeLidAngle(_ angle: Double?) async {
+        guard lidClosureDetector.observe(angle: angle) else { return }
+        guard policyMode == .automatic,
+              activeAgentCount > 0,
+              !isChanging,
+              lifetimeWakeSessionCount < Int.max else { return }
+
+        let revision = operationRevision
+        guard let physicallyEnabled = try? await service.currentSleepPreventionState()
+        else { return }
+        guard !isChanging, operationRevision == revision else { return }
+
+        state = physicallyEnabled ? .enabled : .disabled
+        guard physicallyEnabled,
+              policyMode == .automatic,
+              activeAgentCount > 0,
+              policyMatchesSystemState,
+              lifetimeWakeSessionCount < Int.max else { return }
+
+        lifetimeWakeSessionCount += 1
+        preferences.set(
+            lifetimeWakeSessionCount,
+            forKey: Self.lifetimeWakeSessionPreferenceKey
+        )
     }
 
     private func setNotice(for error: Error) {

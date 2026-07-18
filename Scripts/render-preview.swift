@@ -42,6 +42,12 @@ private struct PreviewAgentDetector: AgentActivityDetecting {
     }
 }
 
+private struct PreviewLidAngleSensor: LidAngleSensing {
+    func currentAngle() async -> Double? {
+        120
+    }
+}
+
 @main
 @MainActor
 struct WakeBarPreviewRenderer {
@@ -86,6 +92,10 @@ struct WakeBarPreviewRenderer {
         let suite = "WakeBarPreview.\(UUID().uuidString)"
         let preferences = UserDefaults(suiteName: suite)!
         preferences.set(mode.rawValue, forKey: SleepControlModel.policyPreferenceKey)
+        preferences.set(
+            128,
+            forKey: SleepControlModel.lifetimeWakeSessionPreferenceKey
+        )
         defer { preferences.removePersistentDomain(forName: suite) }
 
         let model = SleepControlModel(
@@ -94,6 +104,7 @@ struct WakeBarPreviewRenderer {
                 configured: !isSetupRequired
             ),
             agentDetector: PreviewAgentDetector(activities: activities),
+            lidAngleSensor: PreviewLidAngleSensor(),
             preferences: preferences,
             refreshOnInit: false,
             startMonitoring: false

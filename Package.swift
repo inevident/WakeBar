@@ -13,7 +13,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "WakeBar",
-            path: "Sources/WakeBar"
+            path: "Sources/WakeBar",
+            linkerSettings: [
+                .linkedFramework("IOKit")
+            ]
         ),
         .testTarget(
             name: "WakeBarTests",

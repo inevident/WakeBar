@@ -18,6 +18,38 @@ final class SleepControlModelTests: XCTestCase {
         XCTAssertEqual(model.menuBarText, "AUTO")
     }
 
+    func testLifetimeWakeSessionCountLoadsAndClampsNegativeValues() {
+        let (seededPreferences, seededSuite) = makePreferences(
+            lifetimeWakeSessionCount: 27
+        )
+        defer { seededPreferences.removePersistentDomain(forName: seededSuite) }
+
+        let seededModel = makeModel(
+            service: StubPMSetService(currentValue: false),
+            preferences: seededPreferences
+        )
+
+        XCTAssertEqual(seededModel.lifetimeWakeSessionCount, 27)
+
+        let (negativePreferences, negativeSuite) = makePreferences(
+            lifetimeWakeSessionCount: -3
+        )
+        defer { negativePreferences.removePersistentDomain(forName: negativeSuite) }
+
+        let clampedModel = makeModel(
+            service: StubPMSetService(currentValue: false),
+            preferences: negativePreferences
+        )
+
+        XCTAssertEqual(clampedModel.lifetimeWakeSessionCount, 0)
+        XCTAssertEqual(
+            negativePreferences.integer(
+                forKey: SleepControlModel.lifetimeWakeSessionPreferenceKey
+            ),
+            0
+        )
+    }
+
     func testRefreshPublishesStatePowerAndAuthorization() async {
         let service = StubPMSetService(
             currentValue: false,
@@ -91,6 +123,7 @@ final class SleepControlModelTests: XCTestCase {
 
         XCTAssertEqual(model.policyMode, .on)
         XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
         await assertWrites([true], from: service)
     }
 
@@ -109,7 +142,258 @@ final class SleepControlModelTests: XCTestCase {
         XCTAssertEqual(model.activeAgentCount, 1)
         XCTAssertEqual(model.state, .enabled)
         XCTAssertEqual(model.menuBarText, "AUTO · 1")
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
         await assertWrites([true], from: service)
+    }
+
+    func testAutomaticWakeSessionCountPersistsWithoutDoubleCounting() async {
+        let (preferences, suite) = makePreferences()
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let lidAngleSensor = SequenceLidAngleSensor([120, 0, 0, 0])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: lidAngleSensor,
+            preferences: preferences
+        )
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+
+        await model.refresh()
+        await model.pollAgentActivity(now: start)
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 1)
+        XCTAssertEqual(
+            preferences.integer(
+                forKey: SleepControlModel.lifetimeWakeSessionPreferenceKey
+            ),
+            1
+        )
+
+        let relaunchedModel = makeModel(
+            service: service,
+            detector: SequenceAgentDetector([
+                .healthy([makeActivity(id: "codex:one")])
+            ]),
+            lidAngleSensor: SequenceLidAngleSensor([0, 0]),
+            preferences: preferences
+        )
+        await relaunchedModel.refresh()
+        await relaunchedModel.pollAgentActivity(now: start.addingTimeInterval(10))
+        await relaunchedModel.pollLidAngle()
+        await relaunchedModel.pollLidAngle()
+
+        XCTAssertEqual(relaunchedModel.lifetimeWakeSessionCount, 1)
+        await assertWrites([true], from: service)
+    }
+
+    func testAutomaticProtectedLidClosureCountsOnce() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 4, 0, 0])
+        )
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        await model.refresh()
+        await model.pollAgentActivity(now: now)
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 1)
+        await assertWrites([true], from: service)
+    }
+
+    func testExternalDisableImmediatelyBeforeClosureDoesNotCount() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0])
+        )
+
+        await model.refresh()
+        await model.pollAgentActivity()
+        await model.pollLidAngle()
+        await service.setExternalState(false)
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .disabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
+        await assertWrites([true], from: service)
+    }
+
+    func testOnModeLidClosureDoesNotCount() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0])
+        )
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        await model.refresh()
+        await model.applyPolicyMode(.on)
+        await model.pollAgentActivity(now: now)
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
+        await assertWrites([true], from: service)
+    }
+
+    func testLidMustFullyReopenBeforeAnotherClosureCounts() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let sensor = SequenceLidAngleSensor([
+            120, 0, 0, 0, 7, 0, 0, 12, 0, 0
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: sensor
+        )
+
+        await model.refresh()
+        await model.pollAgentActivity()
+        for _ in 0..<10 {
+            await model.pollLidAngle()
+        }
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 2)
+        await assertWrites([true], from: service)
+    }
+
+    func testClosureBeforeAgentStartsDoesNotCountLaterWhileStillClosed() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([]),
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0, 0])
+        )
+
+        await model.refresh()
+        await model.pollAgentActivity()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollAgentActivity()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
+        await assertWrites([true], from: service)
+    }
+
+    func testGraceOnlyLidClosureDoesNotCount() async {
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")]),
+            .healthy([])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0]),
+            releaseGracePeriod: 90
+        )
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+
+        await model.refresh()
+        await model.pollAgentActivity(now: start)
+        await model.pollLidAngle()
+        await model.pollAgentActivity(now: start.addingTimeInterval(1))
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertTrue(model.isHoldingAutoGrace)
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
+    }
+
+    func testLifetimeWakeSessionCountSaturatesAtIntMax() async {
+        let (preferences, suite) = makePreferences(
+            lifetimeWakeSessionCount: .max
+        )
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let service = StubPMSetService(currentValue: false, configured: true)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0]),
+            preferences: preferences
+        )
+
+        await model.refresh()
+        await model.pollAgentActivity()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, .max)
+        XCTAssertEqual(
+            preferences.integer(
+                forKey: SleepControlModel.lifetimeWakeSessionPreferenceKey
+            ),
+            .max
+        )
+        await assertWrites([true], from: service)
+    }
+
+    func testClosedLidDoesNotCountWithoutVerifiedAutomaticProtection() async {
+        let service = StubPMSetService(currentValue: false, configured: false)
+        let detector = SequenceAgentDetector([
+            .healthy([makeActivity(id: "codex:one")])
+        ])
+        let model = makeModel(
+            service: service,
+            detector: detector,
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0])
+        )
+
+        await model.refresh()
+        await model.pollAgentActivity()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+
+        XCTAssertEqual(model.state, .disabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
+        await assertWrites([], from: service)
     }
 
     func testAutomaticHoldsGraceThenReleasesAtBoundary() async {
@@ -325,6 +609,7 @@ final class SleepControlModelTests: XCTestCase {
         await model.applyPolicyMode(.on)
 
         XCTAssertEqual(model.state, .disabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
         guard case let .failure(message) = model.notice else {
             return XCTFail("Expected a verification failure")
         }
@@ -342,11 +627,34 @@ final class SleepControlModelTests: XCTestCase {
 
         await model.refresh()
         await model.pollAgentActivity(now: start)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
         await service.setExternalState(false)
         await model.pollAgentActivity(now: start.addingTimeInterval(21))
 
         XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 0)
         await assertWrites([true, true], from: service)
+    }
+
+    func testExistingOnLockAndItsDriftRepairDoNotChangeLidClosureCount() async {
+        let (preferences, suite) = makePreferences(
+            mode: .on,
+            lifetimeWakeSessionCount: 8
+        )
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let service = StubPMSetService(currentValue: true, configured: true)
+        let model = makeModel(service: service, preferences: preferences)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        await model.refresh()
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 8)
+
+        await service.setExternalState(false)
+        await model.pollAgentActivity(now: now)
+
+        XCTAssertEqual(model.state, .enabled)
+        XCTAssertEqual(model.lifetimeWakeSessionCount, 8)
+        await assertWrites([true], from: service)
     }
 
     func testAutomaticRepairsExternalEnableDriftWhileIdle() async {
@@ -383,12 +691,14 @@ final class SleepControlModelTests: XCTestCase {
     private func makeModel(
         service: StubPMSetService,
         detector: SequenceAgentDetector = SequenceAgentDetector([.healthy([])]),
+        lidAngleSensor: any LidAngleSensing = SequenceLidAngleSensor([]),
         preferences: UserDefaults? = nil,
         releaseGracePeriod: TimeInterval = 90
     ) -> SleepControlModel {
         SleepControlModel(
             service: service,
             agentDetector: detector,
+            lidAngleSensor: lidAngleSensor,
             preferences: preferences ?? makePreferences().0,
             releaseGracePeriod: releaseGracePeriod,
             systemVerificationInterval: 20,
@@ -398,13 +708,20 @@ final class SleepControlModelTests: XCTestCase {
     }
 
     private func makePreferences(
-        mode: WakePolicyMode? = nil
+        mode: WakePolicyMode? = nil,
+        lifetimeWakeSessionCount: Int? = nil
     ) -> (UserDefaults, String) {
         let suite = "WakeBarTests.\(UUID().uuidString)"
         let preferences = UserDefaults(suiteName: suite)!
         preferences.removePersistentDomain(forName: suite)
         if let mode {
             preferences.set(mode.rawValue, forKey: SleepControlModel.policyPreferenceKey)
+        }
+        if let lifetimeWakeSessionCount {
+            preferences.set(
+                lifetimeWakeSessionCount,
+                forKey: SleepControlModel.lifetimeWakeSessionPreferenceKey
+            )
         }
         return (preferences, suite)
     }
@@ -500,6 +817,23 @@ private actor SequenceAgentDetector: AgentActivityDetecting {
             processScanSucceeded: lastResult.processScanSucceeded,
             scanWasConclusive: lastResult.scanWasConclusive
         )
+    }
+}
+
+private actor SequenceLidAngleSensor: LidAngleSensing {
+    private var readings: [Double?]
+    private var lastReading: Double?
+
+    init(_ readings: [Double?]) {
+        self.readings = readings
+        self.lastReading = readings.last ?? nil
+    }
+
+    func currentAngle() -> Double? {
+        if !readings.isEmpty {
+            lastReading = readings.removeFirst()
+        }
+        return lastReading
     }
 }
 

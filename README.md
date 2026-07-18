@@ -64,6 +64,25 @@ The selected mode is separate from the verified physical sleep lock. WakeBar
 checks the real `SleepDisabled` state every 20 seconds and repairs drift caused
 by another command or an OS-state change.
 
+### Lifetime wake sessions
+
+The popover's **Wake sessions** counter advances when all four conditions are
+true: **AUTO** is selected, a local agent is actively running, the physical
+sleep lock is verified on, and the MacBook lid-angle sensor observes the lid
+move from open to closed. That is the moment WakeBar is actually protecting
+work that would otherwise be at risk when the lid closes.
+
+WakeBar treats readings at or below 5° as closed and requires two consecutive
+samples. Staying closed counts once; the lid must reopen beyond 10° before
+another closure can count. Starting WakeBar with the lid already closed does
+not count, nor do ON mode, AUTO while idle, the 90-second post-work safety
+window, repeated scans, or sleep-lock drift repairs.
+
+The sensor is monitored locally in the background only while AUTO is selected.
+Compatible lid-angle hardware is required; unsupported Macs simply leave the
+counter unchanged. Counting begins with this version and does not invent
+historical saves.
+
 ## See it in action
 
 <table>
@@ -153,6 +172,11 @@ display metadata:
 
 Nothing is uploaded or written to a WakeBar activity log.
 
+WakeBar stores only the selected mode and the lifetime Wake sessions integer in
+the current user's macOS preferences. Raw lid angles are used transiently for
+open/closed detection and are never logged or retained. The counter is not a
+timeline and cannot reveal which agent or project was active.
+
 ## One-time prompt-free setup
 
 `pmset` requires root privileges. Selecting AUTO or clicking **Set Up** asks for
@@ -238,10 +262,11 @@ Run the test suite:
 swift test -Xswiftc -warnings-as-errors
 ```
 
-The 71 tests cover process filtering, Codex, Claude, and Cursor lifecycle
+The 88 tests cover process filtering, Codex, Claude, and Cursor lifecycle
 parsing, power assertions, terminal manifests, custom runtime homes, degraded
 scans, OFF/AUTO/ON transitions, grace timing, external-state repair, exact
-privileged arguments, sudoers safety, and authorization failures. Tests use
+privileged arguments, lid-angle decoding and closure hysteresis, lifetime
+Wake-session accounting, sudoers safety, and authorization failures. Tests use
 injected actors and never modify the host Mac's power or sudoers settings.
 
 For a read-only detector snapshot:
@@ -264,6 +289,11 @@ The detector architecture was informed by the MIT-licensed local session work
 in [steipete/CodexBar](https://github.com/steipete/CodexBar). WakeBar implements
 its own detector and does not require CodexBar. See
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+Lid-angle discovery and feature-report decoding are adapted from the
+Apache-2.0-licensed
+[samhenrigold/LidAngleSensor](https://github.com/samhenrigold/LidAngleSensor).
+WakeBar uses only its local HID sensor technique—none of its UI or audio assets.
 
 WakeBar's source is publicly visible, but no project license has been granted.
 All rights are reserved unless a license is added later.

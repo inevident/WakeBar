@@ -464,6 +464,13 @@ struct WakeBarPopoverView: View {
             )
 
             detailRow(
+                symbol: "clock.arrow.circlepath",
+                title: "Wake sessions",
+                detail: "\(model.lifetimeWakeSessionCount.formatted()) lifetime",
+                tint: .purple
+            )
+
+            detailRow(
                 symbol: localAgentWatchHealthy ? "eye.fill" : "eye.slash.fill",
                 title: "Local agent watch",
                 detail: localAgentWatchHealthy ? "On-device · no login" : "Protected · retrying",

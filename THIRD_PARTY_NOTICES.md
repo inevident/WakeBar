@@ -26,3 +26,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## LidAngleSensor
+
+WakeBar's lid-angle HID discovery and feature-report decoding are adapted from
+[samhenrigold/LidAngleSensor](https://github.com/samhenrigold/LidAngleSensor),
+commit `f7e4e5cb46fe13a518091ce5d47f0ec2e3fecd80`. The adapted implementation is
+marked as modified in `Sources/WakeBar/LidAngleSensor.swift`.
+
+LidAngleSensor was created by Sam Gold and is licensed under the Apache License,
+Version 2.0. The full license is distributed at
+`LICENSES/LidAngleSensor-Apache-2.0.txt` in source builds and at
+`ThirdPartyLicenses/LidAngleSensor-Apache-2.0.txt` inside WakeBar.app.
