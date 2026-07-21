@@ -29,18 +29,13 @@ system sleep lock only while work is running, and restores normal sleep after a
 - **Hands-off after setup:** one narrowly scoped administrator approval enables
   prompt-free switching between sleep states.
 
-> [!IMPORTANT]
-> The Apple Silicon release archive is Developer ID-signed and notarized by
-> Apple. Local source builds remain ad-hoc signed.
-
 ## Quick start
 
 ### Download
 
-On an Apple Silicon Mac running macOS 13 or later, download and open
-[`WakeBar-1.2.0-macOS.zip`](https://github.com/inevident/WakeBar/releases/download/v1.2.0/WakeBar-1.2.0-macOS.zip).
-The archive contains a stapled notarization ticket that macOS can verify
-offline.
+On an Apple Silicon Mac running macOS 13 or later, download WakeBar from the
+[latest release](https://github.com/inevident/WakeBar/releases/latest). The app
+is signed and notarized by Apple.
 
 ### Build from source
 
@@ -210,9 +205,8 @@ preservation, or any other root command. Runtime changes use non-interactive
 password.
 
 Any process running as the same macOS user can invoke those two exact commands.
-This is a pragmatic design for a personal, locally built utility. A broadly
-distributed release should use a Developer ID-signed and notarized privileged
-helper.
+This is a deliberate tradeoff that keeps the permission narrow and the setup
+prompt-free after approval.
 
 The gear menu can repair or remove instant switching. Removal asks for approval,
 turns the sleep lock off, verifies the exact receipt, and removes only that file.
@@ -265,45 +259,6 @@ Build the app:
 ```sh
 ./Scripts/build-app.sh
 ```
-
-`build-app.sh` always produces an ad-hoc-signed local build. Installing a
-Developer ID certificate does not change that behavior.
-
-### Signed release maintenance
-
-Published release archives are Developer ID-signed and notarized. The repository
-also includes a separate local release-preparation workflow for future updates.
-`Scripts/prepare-notarized-release.sh` requires all three of the following
-before it will build or sign anything: the explicit
-`--sign-and-notarize` flag, a Developer ID Application identity, and a
-Keychain-backed `notarytool` profile. It signs with the hardened runtime,
-submits to Apple's notary service, staples and validates the ticket, checks the
-result with Gatekeeper, and creates a local ZIP plus SHA-256 checksum. Signing
-happens on a temporary staging copy, so `dist/WakeBar.app` remains the ordinary
-ad-hoc build even if release preparation fails. The script never uploads a
-GitHub release.
-
-When a signed release is actually wanted, first store notarization credentials
-locally in Keychain. Do not put an Apple password, app-specific password, API
-key, or signing certificate in the repository:
-
-```sh
-xcrun notarytool store-credentials "WakeBar-notary" \
-  --apple-id "YOUR_APPLE_ACCOUNT" \
-  --team-id "YOUR_TEAM_ID"
-```
-
-Then run the deliberately guarded release command:
-
-```sh
-WAKEBAR_SIGNING_IDENTITY="Developer ID Application: Name (TEAMID)" \
-WAKEBAR_NOTARY_PROFILE="WakeBar-notary" \
-./Scripts/prepare-notarized-release.sh --sign-and-notarize
-```
-
-The script creates local release assets but does not publish a GitHub release;
-attach its ZIP and checksum only after notarization and Gatekeeper validation
-succeed.
 
 Run the test suite:
 
