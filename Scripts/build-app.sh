@@ -8,7 +8,6 @@ APP_NAME="WakeBar"
 DIST_DIR="$ROOT/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
-THIRD_PARTY_LICENSES="$CONTENTS/Resources/ThirdPartyLicenses"
 ICONSET="$ROOT/.build/WakeBar.iconset"
 
 if [[ "$CONFIGURATION" != "release" && "$CONFIGURATION" != "debug" ]]; then
@@ -21,13 +20,10 @@ swift build --package-path "$ROOT" -c "$CONFIGURATION"
 BIN_DIR="$(swift build --package-path "$ROOT" -c "$CONFIGURATION" --show-bin-path)"
 
 rm -rf "$APP_BUNDLE" "$ICONSET"
-mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$THIRD_PARTY_LICENSES" "$DIST_DIR"
+mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$DIST_DIR"
 
 cp "$BIN_DIR/$APP_NAME" "$CONTENTS/MacOS/$APP_NAME"
 cp "$ROOT/Resources/Info.plist" "$CONTENTS/Info.plist"
-cp "$ROOT/THIRD_PARTY_NOTICES.md" "$CONTENTS/Resources/THIRD_PARTY_NOTICES.md"
-cp "$ROOT/LICENSES/LidAngleSensor-Apache-2.0.txt" \
-    "$THIRD_PARTY_LICENSES/LidAngleSensor-Apache-2.0.txt"
 
 swift "$ROOT/Scripts/generate-icon.swift" "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$CONTENTS/Resources/WakeBar.icns"

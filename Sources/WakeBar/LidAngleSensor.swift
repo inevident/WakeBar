@@ -1,8 +1,3 @@
-// This file adapts the HID discovery and report decoding used by
-// samhenrigold/LidAngleSensor at commit f7e4e5cb46fe13a518091ce5d47f0ec2e3fecd80.
-// It has been modified for low-frequency, non-UI WakeBar monitoring.
-// The upstream work is licensed under Apache-2.0; see THIRD_PARTY_NOTICES.md.
-
 import Foundation
 import IOKit.hid
 

@@ -290,17 +290,7 @@ swiftc -parse-as-library -warnings-as-errors \
 The screenshots in this README are deterministic SwiftUI previews rendered by
 `Scripts/render-preview.swift`; they contain no desktop or account data.
 
-## Attribution and project status
-
-The detector architecture was informed by the MIT-licensed local session work
-in [steipete/CodexBar](https://github.com/steipete/CodexBar). WakeBar implements
-its own detector and does not require CodexBar. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-
-Lid-angle discovery and feature-report decoding are adapted from the
-Apache-2.0-licensed
-[samhenrigold/LidAngleSensor](https://github.com/samhenrigold/LidAngleSensor).
-WakeBar uses only its local HID sensor technique—none of its UI or audio assets.
+## Project status
 
 WakeBar's source is publicly visible, but no project license has been granted.
 All rights are reserved unless a license is added later.
