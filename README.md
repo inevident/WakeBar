@@ -8,9 +8,10 @@ Keep the Mac awake while agents work. Restore normal sleep when they finish.
 
 <p>
   <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-111827?style=flat-square&logo=apple">
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple_Silicon-arm64-111827?style=flat-square&logo=apple">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
   <img alt="Local only" src="https://img.shields.io/badge/detection-local_only-22c55e?style=flat-square">
-  <img alt="Build from source" src="https://img.shields.io/badge/distribution-build_from_source-0ea5e9?style=flat-square">
+  <img alt="Notarized" src="https://img.shields.io/badge/Apple-notarized-0ea5e9?style=flat-square&logo=apple">
 </p>
 
 </div>
@@ -29,10 +30,19 @@ system sleep lock only while work is running, and restores normal sleep after a
   prompt-free switching between sleep states.
 
 > [!IMPORTANT]
-> WakeBar is currently distributed as source. The local build is ad-hoc signed,
-> not Developer ID signed or notarized.
+> The Apple Silicon release archive is Developer ID-signed and notarized by
+> Apple. Local source builds remain ad-hoc signed.
 
 ## Quick start
+
+### Download
+
+On an Apple Silicon Mac running macOS 13 or later, download and open
+[`WakeBar-1.2.0-macOS.zip`](https://github.com/inevident/WakeBar/releases/download/v1.2.0/WakeBar-1.2.0-macOS.zip).
+The archive contains a stapled notarization ticket that macOS can verify
+offline.
+
+### Build from source
 
 Requirements: macOS 13 or later and Swift 6 / Xcode command-line tools.
 
@@ -259,10 +269,10 @@ Build the app:
 `build-app.sh` always produces an ad-hoc-signed local build. Installing a
 Developer ID certificate does not change that behavior.
 
-### Optional future signed release
+### Signed release maintenance
 
-WakeBar's public distribution remains source-only. The repository includes a
-separate local release-preparation workflow for a possible future binary.
+Published release archives are Developer ID-signed and notarized. The repository
+also includes a separate local release-preparation workflow for future updates.
 `Scripts/prepare-notarized-release.sh` requires all three of the following
 before it will build or sign anything: the explicit
 `--sign-and-notarize` flag, a Developer ID Application identity, and a
@@ -291,9 +301,9 @@ WAKEBAR_NOTARY_PROFILE="WakeBar-notary" \
 ./Scripts/prepare-notarized-release.sh --sign-and-notarize
 ```
 
-Until a resulting signed archive is deliberately published, the
-source-distribution notice at the top of this README remains the authoritative
-release status.
+The script creates local release assets but does not publish a GitHub release;
+attach its ZIP and checksum only after notarization and Gatekeeper validation
+succeed.
 
 Run the test suite:
 
