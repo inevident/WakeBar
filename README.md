@@ -83,6 +83,9 @@ another closure can count. Starting WakeBar with the lid already closed does
 not count, nor do ON mode, AUTO while idle, the 90-second post-work safety
 window, repeated scans, or sleep-lock drift repairs.
 
+While AUTO is monitoring, a small **LID CLOSED** badge appears after the same
+two confirmed closed readings and disappears when the lid reopens.
+
 The sensor is monitored locally in the background only while AUTO is selected.
 Compatible lid-angle hardware is required; unsupported Macs simply leave the
 counter unchanged. Counting begins with this version and does not invent
@@ -266,7 +269,7 @@ Run the test suite:
 swift test -Xswiftc -warnings-as-errors
 ```
 
-The 88 tests cover process filtering, Codex, Claude, and Cursor lifecycle
+The 90 tests cover process filtering, Codex, Claude, and Cursor lifecycle
 parsing, power assertions, terminal manifests, custom runtime homes, degraded
 scans, OFF/AUTO/ON transitions, grace timing, external-state repair, exact
 privileged arguments, lid-angle decoding and closure hysteresis, lifetime

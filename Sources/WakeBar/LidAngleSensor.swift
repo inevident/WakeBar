@@ -149,6 +149,10 @@ struct LidClosureDetector {
     private var consecutiveClosedSamples = 0
     private var consecutiveInvalidSamples = 0
 
+    var isClosed: Bool {
+        position == .closed
+    }
+
     mutating func observe(angle: Double?) -> Bool {
         guard let angle,
               angle.isFinite,

@@ -53,6 +53,10 @@ struct WakeBarPopoverView: View {
             reduceMotion ? nil : .easeInOut(duration: 0.18),
             value: model.notice
         )
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.18),
+            value: model.isLidClosed
+        )
         .task {
             await model.refresh()
             await model.pollAgentActivity()
@@ -118,7 +122,19 @@ struct WakeBarPopoverView: View {
             }
 
             Spacer(minLength: 8)
-            statusPill
+
+            VStack(alignment: .trailing, spacing: 5) {
+                statusPill
+
+                if model.isLidClosed {
+                    lidClosedPill
+                        .transition(
+                            .opacity.combined(
+                                with: .scale(scale: 0.92, anchor: .topTrailing)
+                            )
+                        )
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 15)
@@ -142,6 +158,18 @@ struct WakeBarPopoverView: View {
         .clipShape(Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(model.menuBarAccessibilityLabel)
+    }
+
+    private var lidClosedPill: some View {
+        Label("LID CLOSED", systemImage: "laptopcomputer")
+            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .tracking(0.45)
+            .foregroundStyle(Color.purple)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(Color.purple.opacity(colorScheme == .dark ? 0.17 : 0.1))
+            .clipShape(Capsule())
+            .accessibilityLabel("MacBook lid closed")
     }
 
     private var modeSelector: some View {

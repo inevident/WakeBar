@@ -43,8 +43,10 @@ private struct PreviewAgentDetector: AgentActivityDetecting {
 }
 
 private struct PreviewLidAngleSensor: LidAngleSensing {
+    let angle: Double
+
     func currentAngle() async -> Double? {
-        120
+        angle
     }
 }
 
@@ -52,8 +54,8 @@ private struct PreviewLidAngleSensor: LidAngleSensing {
 @MainActor
 struct WakeBarPreviewRenderer {
     static func main() async throws {
-        guard (2...5).contains(CommandLine.arguments.count) else {
-            fputs("usage: render-preview <output.png> [--off|--on] [--active] [--setup]\n", stderr)
+        guard (2...6).contains(CommandLine.arguments.count) else {
+            fputs("usage: render-preview <output.png> [--off|--on] [--active] [--setup] [--closed]\n", stderr)
             exit(64)
         }
 
@@ -70,6 +72,7 @@ struct WakeBarPreviewRenderer {
         }
         let isActive = options.contains("--active")
         let isSetupRequired = options.contains("--setup")
+        let isClosed = options.contains("--closed")
         let isEnabled = mode == .on || (mode == .automatic && isActive && !isSetupRequired)
         let activities: [AgentActivity] = isActive ? [
             AgentActivity(
@@ -104,13 +107,17 @@ struct WakeBarPreviewRenderer {
                 configured: !isSetupRequired
             ),
             agentDetector: PreviewAgentDetector(activities: activities),
-            lidAngleSensor: PreviewLidAngleSensor(),
+            lidAngleSensor: PreviewLidAngleSensor(angle: isClosed ? 0 : 120),
             preferences: preferences,
             refreshOnInit: false,
             startMonitoring: false
         )
         await model.refresh()
         await model.pollAgentActivity()
+        if isClosed {
+            await model.pollLidAngle()
+            await model.pollLidAngle()
+        }
 
         let rootView = WakeBarPopoverView(model: model)
             .environment(\.colorScheme, .dark)

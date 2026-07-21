@@ -43,9 +43,13 @@ final class LidAngleSensorTests: XCTestCase {
         var detector = LidClosureDetector()
 
         XCTAssertFalse(detector.observe(angle: 120))
+        XCTAssertFalse(detector.isClosed)
         XCTAssertFalse(detector.observe(angle: 4))
+        XCTAssertFalse(detector.isClosed)
         XCTAssertTrue(detector.observe(angle: 0))
+        XCTAssertTrue(detector.isClosed)
         XCTAssertFalse(detector.observe(angle: 0))
+        XCTAssertTrue(detector.isClosed)
     }
 
     func testInvalidSampleBreaksConsecutiveClosedConfirmation() {
@@ -65,9 +69,11 @@ final class LidAngleSensorTests: XCTestCase {
         XCTAssertFalse(detector.observe(angle: 0))
         XCTAssertTrue(detector.observe(angle: 0))
         XCTAssertFalse(detector.observe(angle: 7))
+        XCTAssertTrue(detector.isClosed)
         XCTAssertFalse(detector.observe(angle: 0))
         XCTAssertFalse(detector.observe(angle: 0))
         XCTAssertFalse(detector.observe(angle: 10))
+        XCTAssertFalse(detector.isClosed)
         XCTAssertFalse(detector.observe(angle: 0))
         XCTAssertTrue(detector.observe(angle: 0))
     }

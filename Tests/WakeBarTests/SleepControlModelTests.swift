@@ -218,6 +218,47 @@ final class SleepControlModelTests: XCTestCase {
         await assertWrites([true], from: service)
     }
 
+    func testLidClosedIndicatorUsesConfirmedPositionAndReopenHysteresis() async {
+        let model = makeModel(
+            service: StubPMSetService(currentValue: false, configured: true),
+            detector: SequenceAgentDetector([.healthy([])]),
+            lidAngleSensor: SequenceLidAngleSensor([120, 0, 0, 7, 12])
+        )
+
+        await model.pollLidAngle()
+        XCTAssertFalse(model.isLidClosed)
+
+        await model.pollLidAngle()
+        XCTAssertFalse(model.isLidClosed)
+
+        await model.pollLidAngle()
+        XCTAssertTrue(model.isLidClosed)
+
+        await model.pollLidAngle()
+        XCTAssertTrue(model.isLidClosed)
+
+        await model.pollLidAngle()
+        XCTAssertFalse(model.isLidClosed)
+    }
+
+    func testLeavingAutomaticModeClearsLidClosedIndicator() async {
+        let model = makeModel(
+            service: StubPMSetService(currentValue: false, configured: true),
+            detector: SequenceAgentDetector([.healthy([])]),
+            lidAngleSensor: SequenceLidAngleSensor([0, 0, 0])
+        )
+
+        await model.pollLidAngle()
+        await model.pollLidAngle()
+        XCTAssertTrue(model.isLidClosed)
+
+        await model.applyPolicyMode(.on)
+        XCTAssertFalse(model.isLidClosed)
+
+        await model.pollLidAngle()
+        XCTAssertFalse(model.isLidClosed)
+    }
+
     func testExternalDisableImmediatelyBeforeClosureDoesNotCount() async {
         let service = StubPMSetService(currentValue: false, configured: true)
         let detector = SequenceAgentDetector([

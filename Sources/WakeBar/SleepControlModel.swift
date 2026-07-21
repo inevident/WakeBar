@@ -64,6 +64,7 @@ final class SleepControlModel: ObservableObject {
     @Published private(set) var state: SleepPreventionState = .loading
     @Published private(set) var policyMode: WakePolicyMode
     @Published private(set) var lifetimeWakeSessionCount: Int
+    @Published private(set) var isLidClosed = false
     @Published private(set) var instantControlState: InstantControlState = .checking
     @Published private(set) var powerSnapshot: PowerSnapshot = .unknown
     @Published private(set) var agentActivities: [AgentActivity] = []
@@ -638,11 +639,19 @@ final class SleepControlModel: ObservableObject {
         lidMonitorTask?.cancel()
         lidMonitorTask = nil
         lidClosureDetector.reset()
+        isLidClosed = false
     }
 
     private func observeLidAngle(_ angle: Double?) async {
-        guard lidClosureDetector.observe(angle: angle) else { return }
-        guard policyMode == .automatic,
+        guard policyMode == .automatic else {
+            isLidClosed = false
+            return
+        }
+
+        let didClose = lidClosureDetector.observe(angle: angle)
+        isLidClosed = lidClosureDetector.isClosed
+
+        guard didClose,
               activeAgentCount > 0,
               !isChanging,
               lifetimeWakeSessionCount < Int.max else { return }
