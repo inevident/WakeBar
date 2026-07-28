@@ -24,6 +24,7 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$DIST_DIR"
 
 cp "$BIN_DIR/$APP_NAME" "$CONTENTS/MacOS/$APP_NAME"
 cp "$ROOT/Resources/Info.plist" "$CONTENTS/Info.plist"
+cp "$ROOT/LICENSE" "$CONTENTS/Resources/LICENSE.txt"
 
 swift "$ROOT/Scripts/generate-icon.swift" "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$CONTENTS/Resources/WakeBar.icns"

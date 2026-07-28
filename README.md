@@ -12,6 +12,7 @@ Keep the Mac awake while agents work. Restore normal sleep when they finish.
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
   <img alt="Local only" src="https://img.shields.io/badge/detection-local_only-22c55e?style=flat-square">
   <img alt="Notarized" src="https://img.shields.io/badge/Apple-notarized-0ea5e9?style=flat-square&logo=apple">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-a855f7?style=flat-square">
 </p>
 
 </div>
@@ -290,7 +291,6 @@ swiftc -parse-as-library -warnings-as-errors \
 The screenshots in this README are deterministic SwiftUI previews rendered by
 `Scripts/render-preview.swift`; they contain no desktop or account data.
 
-## Project status
+## License
 
-WakeBar's source is publicly visible, but no project license has been granted.
-All rights are reserved unless a license is added later.
+WakeBar is available under the [MIT License](LICENSE).
