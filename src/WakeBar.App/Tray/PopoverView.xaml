@@ -1,0 +1,237 @@
+<UserControl x:Class="WakeBar.App.Tray.PopoverView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tray="clr-namespace:WakeBar.App.Tray"
+             xmlns:core="clr-namespace:WakeBar.Core;assembly=WakeBar.Core"
+             mc:Ignorable="d"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignWidth="320"
+             Width="320"
+             FontFamily="Segoe UI">
+    <UserControl.Resources>
+        <tray:EnumMatchToBooleanConverter x:Key="EnumMatch" />
+        <tray:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <tray:NotNullToVisibilityConverter x:Key="NotNullToVisibility" />
+        <tray:CountToVisibilityConverter x:Key="CountToVisibility" />
+        <tray:StatusSummaryConverter x:Key="StatusSummary" />
+
+        <SolidColorBrush x:Key="Surface" Color="#FF16181D" />
+        <SolidColorBrush x:Key="SurfaceRaised" Color="#FF23262E" />
+        <SolidColorBrush x:Key="Stroke" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFF3F4F6" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#FF9CA3AF" />
+        <SolidColorBrush x:Key="Accent" Color="#FF3B82F6" />
+        <SolidColorBrush x:Key="Danger" Color="#FFEF4444" />
+
+        <Style x:Key="ModeButton" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Chip"
+                                CornerRadius="7"
+                                Background="Transparent"
+                                Padding="0,7">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="#14FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="#FF3B82F6" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LinkButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="6,3" CornerRadius="5">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{StaticResource Surface}"
+            BorderBrush="{StaticResource Stroke}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="16">
+        <StackPanel>
+
+            <!-- Header -->
+            <Grid>
+                <TextBlock Text="WakeBar"
+                           Foreground="{StaticResource TextPrimary}"
+                           FontSize="14"
+                           FontWeight="SemiBold" />
+                <Border HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        CornerRadius="5"
+                        Padding="7,2"
+                        Background="#1F22C55E"
+                        Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="SLEEP BLOCKED"
+                               FontSize="9"
+                               FontWeight="Bold"
+                               Foreground="#FF4ADE80" />
+                </Border>
+            </Grid>
+
+            <!-- Mode selector -->
+            <Border Margin="0,14,0,0"
+                    Background="{StaticResource SurfaceRaised}"
+                    CornerRadius="9"
+                    Padding="3">
+                <UniformGrid Rows="1" Columns="3">
+                    <RadioButton Style="{StaticResource ModeButton}"
+                                 Content="OFF"
+                                 IsEnabled="{Binding CanSelectMode}"
+                                 IsChecked="{Binding PolicyMode, Mode=OneWay, Converter={StaticResource EnumMatch}, ConverterParameter={x:Static core:WakePolicyMode.Off}}"
+                                 Command="{Binding SelectModeCommand}"
+                                 CommandParameter="{x:Static core:WakePolicyMode.Off}" />
+                    <RadioButton Style="{StaticResource ModeButton}"
+                                 Content="AUTO"
+                                 IsEnabled="{Binding CanSelectMode}"
+                                 IsChecked="{Binding PolicyMode, Mode=OneWay, Converter={StaticResource EnumMatch}, ConverterParameter={x:Static core:WakePolicyMode.Automatic}}"
+                                 Command="{Binding SelectModeCommand}"
+                                 CommandParameter="{x:Static core:WakePolicyMode.Automatic}" />
+                    <RadioButton Style="{StaticResource ModeButton}"
+                                 Content="ON"
+                                 IsEnabled="{Binding CanSelectMode}"
+                                 IsChecked="{Binding PolicyMode, Mode=OneWay, Converter={StaticResource EnumMatch}, ConverterParameter={x:Static core:WakePolicyMode.On}}"
+                                 Command="{Binding SelectModeCommand}"
+                                 CommandParameter="{x:Static core:WakePolicyMode.On}" />
+                </UniformGrid>
+            </Border>
+
+            <!-- Status summary -->
+            <TextBlock Margin="2,12,2,0"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondary}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource StatusSummary}">
+                        <Binding Path="." />
+                        <Binding Path="TrayText" />
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+
+            <!-- Notice -->
+            <Border Margin="0,12,0,0"
+                    CornerRadius="8"
+                    Padding="10,8"
+                    Background="#1FEF4444"
+                    Visibility="{Binding Notice, Converter={StaticResource NotNullToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Notice.Title}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}" />
+                    <TextBlock Text="{Binding Notice.Message}"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               Margin="0,2,0,0"
+                               Foreground="{StaticResource TextSecondary}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Style="{StaticResource LinkButton}"
+                                Content="Retry"
+                                Command="{Binding RetryCommand}" />
+                        <Button Style="{StaticResource LinkButton}"
+                                Content="Dismiss"
+                                Command="{Binding DismissNoticeCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Agent list -->
+            <ItemsControl Margin="0,12,0,0"
+                          ItemsSource="{Binding AgentActivities}"
+                          Visibility="{Binding AgentActivities.Count, Converter={StaticResource CountToVisibility}}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource SurfaceRaised}"
+                                CornerRadius="8"
+                                Padding="10,7"
+                                Margin="0,0,0,5">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimary}" />
+                                    <TextBlock Text="{Binding ProjectName}"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextSecondary}"
+                                               Visibility="{Binding ProjectName, Converter={StaticResource NotNullToVisibility}}" />
+                                </StackPanel>
+                                <TextBlock HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{Binding ProcessId, StringFormat='PID {0}'}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ProcessId}" Value="{x:Null}">
+                                                    <Setter Property="Text" Value="" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Footer -->
+            <Border Margin="0,10,0,0" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Wake sessions"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondary}" />
+                        <TextBlock Text="{Binding LifetimeWakeSessionCount}"
+                                   Margin="6,0,0,0"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimary}" />
+                    </StackPanel>
+                    <Button Style="{StaticResource LinkButton}"
+                            HorizontalAlignment="Right"
+                            Content="Quit"
+                            Click="OnQuitClicked" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

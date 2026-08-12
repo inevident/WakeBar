@@ -1,16 +1,34 @@
-.DS_Store
-.build/
-.swiftpm/
+# .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+*.DotSettings.user
+
+# Build outputs
 dist/
-DerivedData/
-*.xcuserstate
-*.xcodeproj/xcuserdata/
-*.xcworkspace/xcuserdata/
+artifacts/
+publish/
+
+# Local environment
+.DS_Store
 .env
 .env.*
 !.env.example
 
-# Apple signing and notarization credentials must stay out of source control.
+# Upstream macOS build artifacts (kept for reference only)
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Signing credentials
 *.p8
 *.p12
 *.key
