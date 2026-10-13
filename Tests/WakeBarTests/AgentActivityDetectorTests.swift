@@ -183,6 +183,59 @@ final class AgentActivityDetectorTests: XCTestCase {
         XCTAssertTrue(snapshot.scanWasConclusive)
     }
 
+    func testVersionedClaudeDesktopExecutableIsRecognizedWithoutMatchingHelpers() {
+        let worker = "/Users/Test User/Library/Application Support/Claude/claude-code/2.1.295/9d6405864fdc/claude.app/Contents/MacOS/claude"
+        for command in [
+            worker + " --input-format stream-json",
+            "/Applications/Claude.app/Contents/Helpers/disclaimer --pgroup -- " + worker
+        ] {
+            XCTAssertEqual(AgentProcessParser.runtime(for: process(command: command)), .claude)
+        }
+        for command in [
+            "/Applications/Claude.app/Contents/Helpers/disclaimer --pgroup -- /opt/homebrew/bin/uv run blender-mcp",
+            "/Applications/Claude.app/Contents/Helpers/disclaimer --pgroup -- /usr/local/bin/node /tmp/claude-helper.js",
+            "/usr/bin/echo " + worker,
+            worker + "-helper",
+            worker + " --version",
+            "/Applications/Claude.app/Contents/MacOS/Claude"
+        ] {
+            XCTAssertNil(AgentProcessParser.runtime(for: process(command: command)), command)
+        }
+    }
+
+    func testVersionedClaudeDesktopTracksBusyShellIdleAndWaitingWithoutDuplicates() async throws {
+        let now = Date(timeIntervalSince1970: 1_784_000_120)
+        let startedAt = now.addingTimeInterval(-60)
+        let base = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let worker = "/Users/test/Library/Application Support/Claude/claude-code/2.1.295/9d6405864fdc/claude.app/Contents/MacOS/claude"
+        let runner = DetectorCommandRunner(
+            processOutput: [
+                psLine(pid: 101, startedAt: startedAt, command: "/Applications/Claude.app/Contents/Helpers/disclaimer --pgroup -- " + worker),
+                psLine(pid: 102, parentPID: 101, startedAt: startedAt, command: worker + " --input-format stream-json")
+            ].joined(separator: "\n"),
+            lsofResult: successfulResult("p102\ncclaude\nfcwd\nn/Users/test/project\n")
+        )
+        let detector = LocalAgentActivityDetector(commandRunner: runner, homeDirectory: base, environment: [:])
+        for status in [ClaudeSessionStatus.busy, .shell, .idle, .waiting] {
+            _ = try writeClaudeSession(
+                under: base,
+                processID: 102,
+                sessionID: "desktop-thread",
+                workingDirectory: "/Users/test/project",
+                processStartedAt: startedAt,
+                status: status,
+                statusUpdatedAt: now
+            )
+            let snapshot = await detector.scan(now: now)
+            XCTAssertEqual(snapshot.activities.map(\.id), status.isActiveWork ? ["claude:desktop-thread"] : [], status.rawValue)
+            XCTAssertTrue(snapshot.scanWasConclusive, status.rawValue)
+            if status.isActiveWork {
+                XCTAssertEqual(snapshot.activities.first?.processID, 102)
+            }
+        }
+    }
+
     func testLsofParserCorrelatesWritableRolloutByKnownCodexPID() {
         let root = URL(fileURLWithPath: "/custom/codex/sessions", isDirectory: true)
         let rollout = "/custom/codex/sessions/2026/07/10/rollout-one.jsonl"

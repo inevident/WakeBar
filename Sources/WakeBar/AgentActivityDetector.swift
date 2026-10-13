@@ -118,7 +118,7 @@ struct AgentProcessRecord: Equatable, Sendable {
             return basename
         }
 
-        if lowercased.contains("application support/claude/claude-code/claude") {
+        if AgentProcessParser.isEmbeddedClaudeCodeExecutable(command) {
             return "claude"
         }
 
@@ -136,6 +136,32 @@ struct AgentProcessRecord: Equatable, Sendable {
 }
 
 enum AgentProcessParser {
+    // Desktop installs may use the legacy binary or a versioned app bundle.
+    // Match the executable, not a path mentioned later in another process's arguments.
+    static func isEmbeddedClaudeCodeExecutable(_ command: String) -> Bool {
+        command.range(
+            of: #"^/(?:users/[^/\n]+|var/root)/library/application support/claude/claude-code/(?:claude|[^\s/]+(?:/[^\s/]+)*/claude\.app/contents/macos/claude)(?:\s|$)"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
+    private static func isClaudeCodeWrapper(_ record: AgentProcessRecord) -> Bool {
+        guard record.executableBasename == "disclaimer",
+              record.command.range(
+                  of: #"^/[^\n]*?/claude\.app/contents/(?:resources|helpers)/disclaimer\s+"#,
+                  options: [.regularExpression, .caseInsensitive]
+              ) != nil,
+              let separator = record.command.firstIndex(where: \.isWhitespace) else {
+            return false
+        }
+        var childCommand = record.command[separator...]
+            .trimmingCharacters(in: .whitespaces)
+        if childCommand.hasPrefix("--pgroup -- ") {
+            childCommand.removeFirst("--pgroup -- ".count)
+        }
+        return isEmbeddedClaudeCodeExecutable(childCommand)
+    }
+
     static func parse(_ output: String) -> [AgentProcessRecord] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -176,9 +202,9 @@ enum AgentProcessParser {
         }
 
         if lowercasedCommand.contains(".app/") {
-            let knownEmbeddedAgent = lowercasedCommand.contains(
-                "application support/claude/claude-code/claude"
-            ) || basename == "cursor-agent"
+            let knownEmbeddedAgent = isEmbeddedClaudeCodeExecutable(record.command)
+                || isClaudeCodeWrapper(record)
+                || basename == "cursor-agent"
                 || lowercasedCommand.hasPrefix(
                     "/applications/chatgpt.app/contents/resources/codex "
                 )
@@ -196,7 +222,7 @@ enum AgentProcessParser {
             guard !lowercasedCommand.contains("claude-code-acp") else { return nil }
             return .claude
         case "disclaimer":
-            guard lowercasedCommand.contains("claude") else { return nil }
+            guard isClaudeCodeWrapper(record) else { return nil }
             return .claude
         case "cursor-agent":
             return .cursor

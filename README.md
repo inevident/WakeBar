@@ -147,7 +147,7 @@ when a secondary signal is temporarily unavailable.
 | Runtime | Local signal |
 | --- | --- |
 | **Codex** | Correlates exact Codex processes with writable rollout files and lifecycle events such as task started, completed, or aborted. Persistent app-server processes do not count. |
-| **Claude Code** | Validates each live PID against Claude's local session registry and process start time. `busy` and `shell` count; idle prompts and sessions waiting for input do not. |
+| **Claude Code (CLI and Claude Desktop's local Code sessions)** | Recognizes both legacy and versioned Desktop workers, then validates each live PID against Claude's local session registry and process start time. `busy` and `shell` count; idle prompts and sessions waiting for input do not. Desktop launchers are deduplicated, and persistent app/MCP helpers do not count. |
 | **Cursor** | Correlates the Cursor app, agent-loop sleep assertion, transcript lifecycle, `AwaitShell` identifiers, and verified terminal manifests. |
 | **Named agent CLIs** | Uses exact executable identity and process liveness for supported command-line agents. |
 | **Antigravity IDE** | Recognizes an actively working local language-server process without treating the always-open app as activity. |
@@ -270,7 +270,7 @@ Run the test suite:
 swift test -Xswiftc -warnings-as-errors
 ```
 
-The 90 tests cover process filtering, Codex, Claude, and Cursor lifecycle
+The tests cover process filtering, Codex, Claude, and Cursor lifecycle
 parsing, power assertions, terminal manifests, custom runtime homes, degraded
 scans, OFF/AUTO/ON transitions, grace timing, external-state repair, exact
 privileged arguments, lid-angle decoding and closure hysteresis, lifetime
